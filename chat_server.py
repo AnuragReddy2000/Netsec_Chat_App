@@ -1,4 +1,3 @@
-
 import select, socket, sys, datetime, ssl, queue as Queue
 import chat_utils as chat_utils
 
@@ -12,10 +11,12 @@ class Chat_Server:
         self.inputs = [sys.stdin]
         self.outputs = []
         self.message_queues = {}
-
+        self.fragment_list = []
+        self.sent_message_number = 0
+        self.recieved_message_number = 0
         while True:
             connection, client_address = self.server.accept()
-            
+            self.server.setblocking(0)
             handshake_result = self.handle_new_connection(connection)
             if handshake_result != chat_utils.HANDSHAKE_FAILED:
                 print('Connection accepted from client! Type "CHAT_END" to end the connection. \n')
@@ -26,50 +27,53 @@ class Chat_Server:
                         input_msg = s.readline()
                         input_msg = input_msg[:-1]
                         if input_msg.strip() != "":
+                            self.sent_message_number += 1
                             print("")
                             self.message_queues[self.client].put(input_msg)
                             if self.client not in self.outputs:
                                 self.outputs.append(self.client)
                     else:
                         data = s.recv(4096).decode('UTF-8')
-                        #recv_time = datetime.datetime.now()
                         if data != chat_utils.CHAT_END:
-                            print("The client says: ",data, '\n')
-                            #handle incoming message
+                            if data[:12] == chat_utils.CHAT_MESSAGE:
+                                msg_num, num_fragments, fragment_num = chat_utils.get_message_details(data)
+                                if self.recieved_message_number != msg_num:
+                                    self.recieved_message_number = msg_num
+                                    if num_fragments == 1:
+                                        print("The client says: ",data[28:], '\n')
+                                    else:
+                                        self.fragment_list.append(data)
+                                else:
+                                    if num_fragments == fragment_num:
+                                        recieved_msg = chat_utils.parse(self.fragment_list)
+                                        print("The client says: ",recieved_msg, '\n')
+                                        self.fragment_list.clear()
+                                    else:
+                                        self.fragment_list.append(data)
                         else:
-                            if s in self.outputs:
-                                self.outputs.remove(s)
-                            self.inputs.remove(s)
                             print("Client ended the session!")
-                            s.close()
-                            del self.message_queues[s]
+                            self.close_client_connection(s)
                             break
-
                 for s in writable:
                     try:
                         next_msg = self.message_queues[s].get_nowait()
                     except Queue.Empty:
                         self.outputs.remove(s)
                     else:
-                        s.send(next_msg.encode('UTF-8'))
                         if next_msg == chat_utils.CHAT_END:
+                            s.send(next_msg.encode('UTF-8'))
                             print('Closing the connection!')
-                            if s in self.outputs:
-                                self.outputs.remove(s)
-                            self.inputs.remove(s)
-                            s.close()
-                            del self.message_queues[s]
+                            self.close_client_connection(s)
                             break
-
+                        else:
+                            msg_blocks = chat_utils.fragment(next_msg, self.sent_message_number)
+                            for msg in msg_blocks:
+                                s.send(msg)
                 for s in exceptional:
                     if s == self.client:
-                        self.inputs.remove(self.client)
-                        if self.client in self.outputs:
-                            self.outputs.remove(self.client)
-                        self.client.close()
+                        self.close_client_connection(s)
                         if handshake_result == chat_utils.HANDSHAKE_SUCESS_TLS:
                             connection.close()
-                        del self.message_queues[self.client]
             self.server.setblocking(1)
 
     def handle_new_connection(self, connection):
@@ -110,6 +114,13 @@ class Chat_Server:
             connection.sendall(response_msg.encode('UTF-8'))
             connection.close()
         return chat_utils.HANDSHAKE_FAILED
+
+    def close_client_connection(self, client):
+        if client in self.outputs:
+            self.outputs.remove(client)
+        self.inputs.remove(client)
+        client.close()
+        del self.message_queues[client]
 
 def main():
     # command line arguments

@@ -14,6 +14,7 @@ class Chat_Client:
             self.inputs = [sys.stdin, self.connection]
             self.outputs = []
             self.message_queue = Queue.Queue()
+            self.fragment_list = []
             self.sent_message_number = 0
             self.recieved_message_number = 0
             while len(self.inputs) > 1:
@@ -35,8 +36,21 @@ class Chat_Client:
                                 print("Server ended the session! Closing the application!")
                                 self.close_connection()
                             else:
-                                print("Server says: ",data,"\n")
-                                #handle incoming message
+                                if data[:12] == chat_utils.CHAT_MESSAGE:
+                                    msg_num, num_fragments, fragment_num = chat_utils.get_message_details(data)
+                                    if self.recieved_message_number != msg_num:
+                                        self.recieved_message_number = msg_num
+                                        if num_fragments == 1:
+                                            print("The client says: ",data[28:], '\n')
+                                        else:
+                                            self.fragment_list.append(data)
+                                    else:
+                                        if num_fragments == fragment_num:
+                                            recieved_msg = chat_utils.parse(self.fragment_list)
+                                            print("The client says: ",recieved_msg, '\n')
+                                            self.fragment_list.clear()
+                                        else:
+                                            self.fragment_list.append(data)
                         except ssl.SSLWantReadError:
                             continue
                 for s in writable:
@@ -45,10 +59,14 @@ class Chat_Client:
                     except Queue.Empty:
                         self.outputs.remove(s)
                     else:
-                        s.send(next_msg.encode('UTF-8'))
                         if next_msg == chat_utils.CHAT_END:
+                            s.send(next_msg.encode('UTF-8'))
                             print('Closing the connection!')
                             self.close_connection()
+                        else:
+                            msg_blocks = chat_utils.fragment(next_msg, self.sent_message_number)
+                            for msg in msg_blocks:
+                                s.send(msg)
                 for s in exceptional:
                     if s == self.connection:
                         self.close_connection()

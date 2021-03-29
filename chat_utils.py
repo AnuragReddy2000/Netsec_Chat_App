@@ -24,7 +24,7 @@ def fragment(message, message_num):
   return split_message
   
 def parse(split_message):
-  messages = [split_message[i].decode('UTF-8')[28:] for i in range(len(split_message))]
+  messages = [split_message[i][28:] for i in range(len(split_message))]
   message = ''.join(messages)
   return message
   
