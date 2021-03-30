@@ -46,6 +46,7 @@ class Chat_Client:
                                             self.fragment_list.append(data)
                                     else:
                                         if num_fragments == fragment_num:
+                                            self.fragment_list.append(data)
                                             recieved_msg = chat_utils.parse(self.fragment_list)
                                             print("The client says: ",recieved_msg, '\n')
                                             self.fragment_list.clear()
