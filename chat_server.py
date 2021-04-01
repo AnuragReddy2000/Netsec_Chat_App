@@ -1,5 +1,6 @@
 import select, socket, sys, datetime, ssl, queue as Queue
 import chat_utils as chat_utils
+from colorama import Fore, Style
 
 # A class that implements the chat server. The IP address, port and the address family are given during initialization 
 class Chat_Server:
@@ -14,13 +15,14 @@ class Chat_Server:
         self.fragment_list = []
         self.sent_message_number = 0
         self.recieved_message_number = 0
+        self.lastline_type = 1
 
         connection, client_address = self.server.accept()
         self.server.setblocking(0)
         handshake_result = self.handle_new_connection(connection)
 
         if handshake_result != chat_utils.HANDSHAKE_FAILED:
-            print('Connection accepted from client! Type "CHAT_END" to end the connection. \n')
+            print(Fore.CYAN + Style.BRIGHT + 'Connection accepted from client! Type "CHAT_END" to end the connection. \n')
         while len(self.inputs) > 1:  
             readable, writable, exceptional = select.select(self.inputs, self.outputs, self.inputs)
             for s in readable:
@@ -28,8 +30,9 @@ class Chat_Server:
                     input_msg = s.readline()
                     input_msg = input_msg[:-1]
                     if input_msg.strip() != "":
+                        if self.lastline_type == 1:
+                            self.lastline_type = 0
                         self.sent_message_number += 1
-                        print("")
                         self.message_queues[self.client].put(input_msg)
                         if self.client not in self.outputs:
                             self.outputs.append(self.client)
@@ -39,7 +42,7 @@ class Chat_Server:
                         if data[:12] == chat_utils.CHAT_MESSAGE:
                             self.handle_new_message(data)
                     else:
-                        print("Client ended the session!")
+                        print(Fore.RED + Style.BRIGHT + "\nClient ended the session!")
                         self.close_client_connection(s)
                         break
             for s in writable:
@@ -50,7 +53,7 @@ class Chat_Server:
                 else:
                     if next_msg == chat_utils.CHAT_END:
                         s.send(next_msg.encode('UTF-8'))
-                        print('Closing the connection!')
+                        print(Fore.RED + Style.BRIGHT + '\nClosing the connection!')
                         self.close_client_connection(s)
                         break
                     else:
@@ -96,7 +99,6 @@ class Chat_Server:
                 self.message_queues[connection] = Queue.Queue()
                 self.client = connection 
                 return chat_utils.HANDSHAKE_SUCESS_NO_TLS
-                #Handle the message
         else:
             response_msg = chat_utils.CHAT_INVALID_HANDSHAKE
             connection.sendall(response_msg.encode('UTF-8'))
@@ -108,14 +110,24 @@ class Chat_Server:
         if self.recieved_message_number != msg_num:
             self.recieved_message_number = msg_num
             if num_fragments == 1:
-                print("The client says: ",data[28:], '\n')
+                if self.lastline_type == 1:
+                    print("\033[A                             \033[A")
+                else:
+                    print("")
+                    self.lastline_type = 1
+                print(Fore.MAGENTA + Style.BRIGHT  +"Alice says: ", Fore.GREEN + Style.BRIGHT + data[28:], Fore.CYAN + Style.BRIGHT + '\n')
             else:
                 self.fragment_list.append(data)
         else:
             if num_fragments == fragment_num:
                 self.fragment_list.append(data)
                 recieved_msg = chat_utils.parse(self.fragment_list)
-                print("The client says: ",recieved_msg, '\n')
+                if self.lastline_type == 1:
+                    print("\033[A                             \033[A")
+                else:
+                    print("")
+                    self.lastline_type = 1
+                print(Fore.MAGENTA + Style.BRIGHT +'Alice says: ', Fore.GREEN + Style.BRIGHT + recieved_msg, Fore.CYAN + Style.BRIGHT + '\n')
                 self.fragment_list.clear()
             else:
                 self.fragment_list.append(data)

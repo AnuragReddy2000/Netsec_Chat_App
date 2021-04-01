@@ -1,5 +1,6 @@
 import socket, ssl, datetime, time, os, sys, select,queue as Queue
 import chat_utils as chat_utils
+from colorama import Fore, Style
 
 # A class that implements the secure client 
 class Chat_Client:
@@ -9,7 +10,7 @@ class Chat_Client:
         new_socket.connect((ip_addr,port))
         handshake_result = self.handle_chat_handshake(new_socket)
         if handshake_result != chat_utils.HANDSHAKE_FAILED:
-            print('Connected to the server! Type "CHAT_END" to end the  connection. \n')
+            print(Fore.CYAN + Style.BRIGHT + 'Connected to the server! Type "CHAT_END" to end the  connection. \n')
             self.connection.setblocking(0)
             self.inputs = [sys.stdin, self.connection]
             self.outputs = []
@@ -17,6 +18,7 @@ class Chat_Client:
             self.fragment_list = []
             self.sent_message_number = 0
             self.recieved_message_number = 0
+            self.lastline_type = 1
             while len(self.inputs) > 1:
                 readable, writable, exceptional = select.select(self.inputs, self.outputs, self.inputs)
                 for s in readable:
@@ -25,7 +27,8 @@ class Chat_Client:
                         input_msg = input_msg[:-1]
                         if input_msg.strip() != '':
                             self.sent_message_number += 1
-                            print("")
+                            if self.lastline_type == 1:
+                                self.lastline_type = 0
                             self.message_queue.put(input_msg)
                             if self.connection not in self.outputs:
                                 self.outputs.append(self.connection)
@@ -33,25 +36,11 @@ class Chat_Client:
                         try:
                             data = s.recv(4096).decode('UTF-8')
                             if data == chat_utils.CHAT_END:
-                                print("Server ended the session! Closing the application!")
+                                print(Fore.RED + Style.BRIGHT + "\nServer ended the session! Closing the application!")
                                 self.close_connection()
                             else:
                                 if data[:12] == chat_utils.CHAT_MESSAGE:
-                                    msg_num, num_fragments, fragment_num = chat_utils.get_message_details(data)
-                                    if self.recieved_message_number != msg_num:
-                                        self.recieved_message_number = msg_num
-                                        if num_fragments == 1:
-                                            print("The client says: ",data[28:], '\n')
-                                        else:
-                                            self.fragment_list.append(data)
-                                    else:
-                                        if num_fragments == fragment_num:
-                                            self.fragment_list.append(data)
-                                            recieved_msg = chat_utils.parse(self.fragment_list)
-                                            print("The client says: ",recieved_msg, '\n')
-                                            self.fragment_list.clear()
-                                        else:
-                                            self.fragment_list.append(data)
+                                    self.handle_new_message(data)
                         except ssl.SSLWantReadError:
                             continue
                 for s in writable:
@@ -62,7 +51,7 @@ class Chat_Client:
                     else:
                         if next_msg == chat_utils.CHAT_END:
                             s.send(next_msg.encode('UTF-8'))
-                            print('Closing the connection!')
+                            print(Fore.RED + Style.BRIGHT + '\nClosing the connection!')
                             self.close_connection()
                         else:
                             msg_blocks = chat_utils.fragment(next_msg, self.sent_message_number)
@@ -74,7 +63,7 @@ class Chat_Client:
                         if handshake_result == chat_utils.HANDSHAKE_SUCESS_TLS:
                             new_socket.close()
         else:
-            print("Oops... something went wrong! Connection failed. \n")
+            print(Fore.RED + Style.BRIGHT + "Oops... something went wrong! Connection failed. \n")
 
     def get_TLS_context(self):
         # creates a SSL context with all the necessary information
@@ -117,6 +106,33 @@ class Chat_Client:
             socket.sendall(input_str.encode('UTF-8'))
             socket.close()
         return chat_utils.HANDSHAKE_FAILED
+
+    def handle_new_message(self,data):
+        msg_num, num_fragments, fragment_num = chat_utils.get_message_details(data)
+        if self.recieved_message_number != msg_num:
+            self.recieved_message_number = msg_num
+            if num_fragments == 1:
+                if self.lastline_type == 1:
+                    print("\033[A                             \033[A")
+                else:
+                    print("")
+                    self.lastline_type = 1
+                print(Fore.MAGENTA + Style.BRIGHT + "Bob says: ",Fore.GREEN + Style.BRIGHT + data[28:], Fore.CYAN + Style.BRIGHT +'\n')
+            else:
+                self.fragment_list.append(data)
+        else:
+            if num_fragments == fragment_num:
+                self.fragment_list.append(data)
+                recieved_msg = chat_utils.parse(self.fragment_list)
+                if self.lastline_type == 1:
+                    print("\033[A                             \033[A")
+                else:
+                    print("")
+                    self.lastline_type = 1
+                print(Fore.MAGENTA + Style.BRIGHT + "Bob says: ",Fore.GREEN + Style.BRIGHT + recieved_msg, Fore.CYAN + Style.BRIGHT +'\n')
+                self.fragment_list.clear()
+            else:
+                self.fragment_list.append(data)
 
     def close_connection(self):
         if self.connection in self.outputs:
