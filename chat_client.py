@@ -75,15 +75,13 @@ class Chat_Client:
                             new_socket.close()
         else:
             print("Oops... something went wrong! Connection failed. \n")
-        
-
 
     def get_TLS_context(self):
         # creates a SSL context with all the necessary information
         context = ssl.SSLContext(ssl.PROTOCOL_TLS)
         context.verify_mode = ssl.CERT_REQUIRED
-        context.load_verify_locations("./RootCA.pem")
-        context.load_cert_chain(certfile="./RootCA.crt", keyfile="./RootCA.key")
+        context.load_verify_locations("./RootCA.crt")
+        context.load_cert_chain(certfile="./alice.crt", keyfile="./alice.key")
         context.options = ssl.OP_NO_TLSv1_2 | ssl.OP_NO_TLSv1_1 | ssl.OP_NO_TLSv1 | ssl.OP_NO_SSLv2 | ssl.OP_NO_SSLv3
         return context
 
@@ -98,8 +96,8 @@ class Chat_Client:
             if resp == chat_utils.CHAT_STARTTLS_ACK:
                 context = self.get_TLS_context()
                 secureSocket = context.wrap_socket(socket)
-                serverCert = secureSocket.getpeercert()
-                if True: # cert check
+                serverCert = secureSocket.getpeercert(binary_form=True)
+                if chat_utils.cert_checker(serverCert, ['./RootCA.crt']):
                     self.connection = secureSocket
                     return chat_utils.HANDSHAKE_SUCESS_TLS
                 else:
@@ -126,25 +124,3 @@ class Chat_Client:
         self.inputs.remove(self.connection)
         self.connection.close()
         del self.message_queue
-
-def main():
-    # command line arguments
-    arg_len = len(sys.argv)
-    if arg_len < 3:
-        print("usage:", sys.argv[0], "<host> <port>")
-        sys.exit(1)
-    args = sys.argv
-    addr_family = socket.AF_INET
-    print("Fetching ip address for",args[1])
-    # Fetching information about the hostname using getaddrinfo()
-    addr_info = socket.getaddrinfo(str(args[1]),args[2])
-    # determining the address family
-    if len(addr_info[0][4]) == 4:
-        addr_family = socket.AF_INET6
-    ip_addr = addr_info[0][4][0]
-    port = args[2]
-    print("Connecting to ",ip_addr,port)
-    print("")
-    Chat_Client(ip_addr,int(port),addr_family)
-
-main()

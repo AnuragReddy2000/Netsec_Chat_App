@@ -31,15 +31,17 @@ def parse(split_message):
 def get_message_details(message):
   return int(message[13:17]), int(message[18:22]), int(message[23:27])
   
-def cert_checker(certificate, trusted_certs):
+def cert_checker(certificate, trusted_cert_paths):
   try:
     cert_store = crypto.X509Store()
-    for cert in trusted_certs:
-      cert_store.add_cert(cert)
+    for trusted_cert_path in trusted_cert_paths:
+      trusted_cert = open(trusted_cert_path,'rt').read()
+      cert_store.add_cert(crypto.load_certificate(crypto.FILETYPE_PEM, trusted_cert))
 
-    cert_context = crypto.X509StoreContext(cert_store, certificate)
-    store_ctx.verify_certificate()
+    cert_context = crypto.X509StoreContext(cert_store, crypto.load_certificate(crypto.FILETYPE_ASN1, certificate))
+    cert_context.verify_certificate()
     return True
   except Exception as exc:
     print(exc)
     return False
+  
