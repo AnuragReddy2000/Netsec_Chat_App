@@ -1,1 +1,0 @@
-secure_chat_app:; python3 ./$< >$@; chmod +x $@; cp secure_chat_app.py secure_chat_app;

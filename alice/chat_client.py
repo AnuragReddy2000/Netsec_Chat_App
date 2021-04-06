@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import socket, ssl, datetime, time, os, sys, select,queue as Queue
 import chat_utils as chat_utils
 from colorama import Fore, Style
@@ -10,7 +12,7 @@ class Chat_Client:
         new_socket.connect((ip_addr,port))
         handshake_result = self.handle_chat_handshake(new_socket)
         if handshake_result != chat_utils.HANDSHAKE_FAILED:
-            print(Fore.CYAN + Style.BRIGHT + 'Connected to the server! Type "CHAT_END" to end the  connection. \n')
+            print(Fore.CYAN + Style.BRIGHT + 'Connected to the server! Type "CHAT_CLOSE" to end the  connection. \n')
             self.connection.setblocking(0)
             self.inputs = [sys.stdin, self.connection]
             self.outputs = []
@@ -35,8 +37,8 @@ class Chat_Client:
                     else:
                         try:
                             data = s.recv(4096).decode('UTF-8')
-                            if data == chat_utils.CHAT_END:
-                                print(Fore.RED + Style.BRIGHT + "\nServer ended the session! Closing the application!")
+                            if data == chat_utils.CHAT_CLOSE:
+                                print(Fore.RED + Style.BRIGHT + "\nServer ended the session! Closing the application!", Style.RESET_ALL+'\n')
                                 self.close_connection()
                             else:
                                 if data[:12] == chat_utils.CHAT_MESSAGE:
@@ -49,9 +51,9 @@ class Chat_Client:
                     except Queue.Empty:
                         self.outputs.remove(s)
                     else:
-                        if next_msg == chat_utils.CHAT_END:
+                        if next_msg == chat_utils.CHAT_CLOSE:
                             s.send(next_msg.encode('UTF-8'))
-                            print(Fore.RED + Style.BRIGHT + '\nClosing the connection!')
+                            print(Fore.RED + Style.BRIGHT + '\nClosing the connection!',Style.RESET_ALL+'\n')
                             self.close_connection()
                         else:
                             msg_blocks = chat_utils.fragment(next_msg, self.sent_message_number)
@@ -69,7 +71,7 @@ class Chat_Client:
         # creates a SSL context with all the necessary information
         context = ssl.SSLContext(ssl.PROTOCOL_TLS)
         context.verify_mode = ssl.CERT_REQUIRED
-        context.load_verify_locations("./RootCA.crt")
+        context.load_verify_locations("./rootCA.crt")
         context.load_cert_chain(certfile="./alice.crt", keyfile="./alice.key")
         context.options = ssl.OP_NO_TLSv1_2 | ssl.OP_NO_TLSv1_1 | ssl.OP_NO_TLSv1 | ssl.OP_NO_SSLv2 | ssl.OP_NO_SSLv3
         return context
@@ -86,8 +88,10 @@ class Chat_Client:
                 context = self.get_TLS_context()
                 secureSocket = context.wrap_socket(socket)
                 serverCert = secureSocket.getpeercert(binary_form=True)
-                if chat_utils.cert_checker(serverCert, ['./RootCA.crt']):
+                if chat_utils.cert_checker(serverCert, ['./rootCA.crt']):
                     self.connection = secureSocket
+                    input_str = chat_utils.CHAT_HANDSHAKE_COMPLETED
+                    secureSocket.sendall(input_str.encode('UTF-8'))
                     return chat_utils.HANDSHAKE_SUCESS_TLS
                 else:
                     input_str = chat_utils.CHAT_INVALID_CERTIFICATE
@@ -96,6 +100,8 @@ class Chat_Client:
                     socket.close()
             elif resp == chat_utils.CHAT_STARTTLS_NOT_SUPPORTED:
                 self.connection = socket
+                input_str = chat_utils.CHAT_HANDSHAKE_COMPLETED
+                socket.sendall(input_str.encode('UTF-8'))
                 return chat_utils.HANDSHAKE_SUCESS_NO_TLS
             else:
                 input_str = chat_utils.CHAT_INVALID_HANDSHAKE
@@ -140,3 +146,24 @@ class Chat_Client:
         self.inputs.remove(self.connection)
         self.connection.close()
         del self.message_queue
+
+def main():
+    arg_len = len(sys.argv)
+    if arg_len < 2:
+        print("\nusage: \n \t -c <host>")
+    else:
+        if sys.argv[1] == '-c':
+            if arg_len == 2:
+                print("\nusage: \n \t -c <host> for clients, \n \t -s for server.")
+            else:
+                domain_name = sys.argv[2]
+                addr_info = socket.getaddrinfo(domain_name,8000)
+                addr_family = socket.AF_INET
+                if len(addr_info[0][4]) == 4:
+                    addr_family = socket.AF_INET6
+                ip_addr = addr_info[0][4][0]
+                Chat_Client(ip_addr,8000,addr_family)
+        else:
+            print("\nusage: \n \t -c <host>")
+
+main()

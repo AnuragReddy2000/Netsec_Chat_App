@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import select, socket, sys, datetime, ssl, queue as Queue
 import chat_utils as chat_utils
 from colorama import Fore, Style
@@ -22,7 +24,9 @@ class Chat_Server:
         handshake_result = self.handle_new_connection(connection)
 
         if handshake_result != chat_utils.HANDSHAKE_FAILED:
-            print(Fore.CYAN + Style.BRIGHT + 'Connection accepted from client! Type "CHAT_END" to end the connection. \n')
+            print(Fore.CYAN + Style.BRIGHT + 'Connection accepted from client! Type "CHAT_CLOSE" to end the connection. \n')
+        else:
+            print(Fore.RED + Style.BRIGHT + "Handshake failed! Rejecting connection.",Style.RESET_ALL+'\n')
         while len(self.inputs) > 1:  
             readable, writable, exceptional = select.select(self.inputs, self.outputs, self.inputs)
             for s in readable:
@@ -38,11 +42,11 @@ class Chat_Server:
                             self.outputs.append(self.client)
                 else:
                     data = s.recv(4096).decode('UTF-8')
-                    if data != chat_utils.CHAT_END:
+                    if data != chat_utils.CHAT_CLOSE:
                         if data[:12] == chat_utils.CHAT_MESSAGE:
                             self.handle_new_message(data)
                     else:
-                        print(Fore.RED + Style.BRIGHT + "\nClient ended the session!")
+                        print(Fore.RED + Style.BRIGHT + "\nClient ended the session!", Style.RESET_ALL+'\n')
                         self.close_client_connection(s)
                         break
             for s in writable:
@@ -51,9 +55,9 @@ class Chat_Server:
                 except Queue.Empty:
                     self.outputs.remove(s)
                 else:
-                    if next_msg == chat_utils.CHAT_END:
+                    if next_msg == chat_utils.CHAT_CLOSE:
                         s.send(next_msg.encode('UTF-8'))
-                        print(Fore.RED + Style.BRIGHT + '\nClosing the connection!')
+                        print(Fore.RED + Style.BRIGHT + '\nClosing the connection!', Style.RESET_ALL+'\n')
                         self.close_client_connection(s)
                         break
                     else:
@@ -78,27 +82,38 @@ class Chat_Server:
                 connection.sendall(response_msg.encode('UTF-8'))
                 secureClientSocket = ssl.wrap_socket(connection, 
                         server_side=True, 
-                        ca_certs="./RootCA.crt", 
+                        ca_certs="./rootCA.crt", 
                         certfile="./bob.crt",
                         keyfile="./bob.key", 
                         cert_reqs=ssl.CERT_REQUIRED,
                         ssl_version=ssl.PROTOCOL_TLS)
                 clientCert = secureClientSocket.getpeercert(binary_form=True)
-                if chat_utils.cert_checker(clientCert, ['./RootCA.crt']):
-                    self.inputs.append(secureClientSocket)
-                    self.message_queues[secureClientSocket] = Queue.Queue()
-                    self.client = secureClientSocket
-                    return chat_utils.HANDSHAKE_SUCESS_TLS
+                if chat_utils.cert_checker(clientCert, ['./rootCA.crt']):
+                    incoming_msg = secureClientSocket.recv(4096).decode('UTF-8')
+                    if incoming_msg == chat_utils.CHAT_HANDSHAKE_COMPLETED:
+                        self.inputs.append(secureClientSocket)
+                        self.message_queues[secureClientSocket] = Queue.Queue()
+                        self.client = secureClientSocket
+                        return chat_utils.HANDSHAKE_SUCESS_TLS
+                    else:
+                        response_msg = chat_utils.CHAT_INVALID_HANDSHAKE
+                        connection.sendall(response_msg.encode('UTF-8'))
+                        secureClientSocket.close()
+                        connection.close()
                 else:
                     response_msg = chat_utils.CHAT_INVALID_CERTIFICATE
                     connection.sendall(response_msg.encode('UTF-8'))
                     secureClientSocket.close()
                     connection.close()
-            else:
+            elif incoming_msg == chat_utils.CHAT_HANDSHAKE_COMPLETED:
                 self.inputs.append(connection)
                 self.message_queues[connection] = Queue.Queue()
                 self.client = connection 
                 return chat_utils.HANDSHAKE_SUCESS_NO_TLS
+            else:
+                response_msg = chat_utils.CHAT_INVALID_HANDSHAKE
+                connection.sendall(response_msg.encode('UTF-8'))
+                connection.close()
         else:
             response_msg = chat_utils.CHAT_INVALID_HANDSHAKE
             connection.sendall(response_msg.encode('UTF-8'))
@@ -139,3 +154,14 @@ class Chat_Server:
         client.close()
         del self.message_queues[client]
 
+def main():
+    arg_len = len(sys.argv)
+    if arg_len < 2:
+        print("\nusage: \n \t -s")
+    else:
+        if sys.argv[1] == '-s':
+            Chat_Server('::1', 8000, socket.AF_INET6)
+        else:
+            print("\nusage: \n \t -s")
+
+main()
