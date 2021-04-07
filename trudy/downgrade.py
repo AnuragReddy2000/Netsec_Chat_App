@@ -7,6 +7,7 @@ class Downgrade_Server:
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.bind((self_ip, 8000))
         self.server.listen(5)
+        print(Fore.GREEN + Style.BRIGHT + 'Server up and running! Waiting for connections...\n')
 
         connection, client_address = self.server.accept()
         new_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)

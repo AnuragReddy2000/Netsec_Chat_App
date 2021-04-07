@@ -10,6 +10,7 @@ class Chat_Server:
         self.server = socket.socket(addr_family, socket.SOCK_STREAM)
         self.server.bind((ip_addr, port))
         self.server.listen(5)
+        print(Fore.GREEN + Style.BRIGHT + 'Server up and running! Waiting for client...\n')
 
         self.inputs = [sys.stdin]
         self.outputs = []
