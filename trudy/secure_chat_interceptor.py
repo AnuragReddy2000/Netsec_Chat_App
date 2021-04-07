@@ -2,6 +2,7 @@
 
 import sys, socket
 from downgrade import Downgrade_Server
+from active_mitm import Active_MITM
 
 
 def main():
@@ -18,7 +19,7 @@ def main():
         if sys.argv[1] == '-d':
             Downgrade_Server('172.31.0.4',server_ip, client_ip)
         elif sys.argv[1] == '-m':
-            print("Active MITM not yet implemented.")
+            Active_MITM('172.31.0.4',server_ip, client_ip)
         else:
             print("\nusage: \n \t -d <server> <client> for downgrade attack, \n \t -m <server> <client> for Active MITM attack.")
 

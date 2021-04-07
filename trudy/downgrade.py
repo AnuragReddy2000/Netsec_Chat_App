@@ -14,6 +14,7 @@ class Downgrade_Server:
         print(Fore.CYAN + Style.BRIGHT + "Intercepting messages...\n")
 
         self.server.setblocking(0)
+        new_socket.setblocking(0)
         self.start_downgrade(connection, new_socket)
 
     def start_downgrade(self, client_side, server_side):
@@ -60,9 +61,9 @@ class Downgrade_Server:
                     self.outputs.remove(s)
                 else:
                     if next_msg == chat_utils.CHAT_CLOSE:
-                        person = 'Alice'
+                        person = 'Bob'
                         if s is server_side:
-                            person = 'Bob'
+                            person = 'Alice'
                         print(Fore.RED + Style.BRIGHT + '\n' + person +' closed the connection!', Style.RESET_ALL+'\n')
                         s.send(next_msg.encode('UTF-8'))
                         self.close_connection(s)

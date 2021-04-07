@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import socket, ssl, datetime, time, os, sys, select,queue as Queue
+import socket, ssl, os, sys, select,queue as Queue
 import chat_utils as chat_utils
 from colorama import Fore, Style
 
@@ -44,7 +44,7 @@ class Chat_Client:
                                 if data[:12] == chat_utils.CHAT_MESSAGE:
                                     self.handle_new_message(data)
                         except ssl.SSLWantReadError:
-                            continue
+                            pass
                 for s in writable:
                     try:
                         next_msg = self.message_queue.get_nowait()
@@ -150,7 +150,7 @@ class Chat_Client:
 def main():
     arg_len = len(sys.argv)
     if arg_len < 2:
-        print("\nusage: \n \t -c <host>")
+        print("\nusage: \t -c <host>")
     else:
         if sys.argv[1] == '-c':
             if arg_len == 2:

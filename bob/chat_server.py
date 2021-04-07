@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import select, socket, sys, datetime, ssl, queue as Queue
+import select, socket, sys, ssl, queue as Queue
 import chat_utils as chat_utils
 from colorama import Fore, Style
 
@@ -162,6 +162,6 @@ def main():
         if sys.argv[1] == '-s':
             Chat_Server('::1', 8000, socket.AF_INET6)
         else:
-            print("\nusage: \n \t -s")
+            print("\nusage: \t -s")
 
 main()

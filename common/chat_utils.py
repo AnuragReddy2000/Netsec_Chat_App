@@ -17,7 +17,7 @@ HANDSHAKE_SUCESS_NO_TLS = 'HANDSHAKE_SUCESS_NO_TLS'
 
 
 def fragment(message, message_num):
-  messsage_size = 8
+  messsage_size = 4068
   split = [message[i:i+messsage_size] for i in range(0, len(message), messsage_size)]
   prefix = 'CHAT_MESSAGE,' + format(message_num, '04d') + ',' + format(len(split), '04d') + ','
   fragment_numbers = [i for i in range(1, len(split)+1, 1)]
