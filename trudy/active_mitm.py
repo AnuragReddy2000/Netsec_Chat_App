@@ -54,7 +54,7 @@ class Active_MITM:
                         if s is self.server_side:
                             person = 'Alice'
                         print(Fore.RED + Style.BRIGHT + '\n' + person +' closed the connection!', Style.RESET_ALL+'\n')
-                        s.send(next_msg.encode('UTF-8'))
+                        s.send(next_msg)
                         self.close_connection(s)
                         break
                     else:

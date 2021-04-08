@@ -70,7 +70,6 @@ class Chat_Server:
                     self.close_client_connection(s)
                     if handshake_result == chat_utils.HANDSHAKE_SUCESS_TLS:
                         connection.close()
-        self.server.setblocking(1)
 
     def handle_new_connection(self, connection):
         incoming_msg = connection.recv(4096).decode('UTF-8')
@@ -154,6 +153,7 @@ class Chat_Server:
         self.inputs.remove(client)
         client.close()
         del self.message_queues[client]
+        self.server.close()
 
 def main():
     arg_len = len(sys.argv)
@@ -161,7 +161,7 @@ def main():
         print("\nusage: \n \t -s")
     else:
         if sys.argv[1] == '-s':
-            Chat_Server('::1', 8000, socket.AF_INET6)
+            Chat_Server('172.31.0.3', 8000, socket.AF_INET)
         else:
             print("\nusage: \t -s")
 
