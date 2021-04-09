@@ -10,6 +10,8 @@ class Chat_Client:
     def __init__(self,ip_addr,port,addr_family):
         new_socket = socket.socket(addr_family,socket.SOCK_STREAM)
         new_socket.connect((ip_addr,port))
+        # Pre-loading the trusted certificates and creating a trust store.
+        self.trust_store = chat_utils.make_trust_store(['./rootCA.crt'])
         # Upon connection, the chat protocol is initiated.
         handshake_result = self.handle_chat_handshake(new_socket)
         # The above method returns either HANDSHAKE_FAILED, HANDSHAKE_SUCCESS_TLS or HANDSHAKE_SUCCESS_NO_TLS indicating the state of the chat_handshake.
@@ -113,8 +115,7 @@ class Chat_Client:
                 secureSocket = context.wrap_socket(socket)
                 serverCert = secureSocket.getpeercert(binary_form=True)
                 # verifying the validity and integrity of the server certificate against the trust store.
-                if chat_utils.cert_checker(serverCert, ['./rootCA.crt']):
-                    self.connection = secureSocket
+                if chat_utils.cert_checker(serverCert, self.trust_store)
                     input_str = chat_utils.CHAT_HANDSHAKE_COMPLETED
                     secureSocket.sendall(input_str.encode('UTF-8'))
                     # Secure connection successfully established using TLS 1.3.

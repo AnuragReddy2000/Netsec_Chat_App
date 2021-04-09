@@ -7,6 +7,7 @@ class Active_MITM:
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.bind((self_ip, 8000))
         self.server.listen(5)
+        self.trust_store = chat_utils.make_trust_store(['./rootCA.crt'])
         print(Fore.GREEN + Style.BRIGHT + 'Server up and running! Waiting for connections...\n')
 
         connection, client_address = self.server.accept()
@@ -140,7 +141,7 @@ class Active_MITM:
                         cert_reqs=ssl.CERT_REQUIRED,
                         ssl_version=ssl.PROTOCOL_TLS)
                 clientCert = secureClientSocket.getpeercert(binary_form=True)
-                if chat_utils.cert_checker(clientCert, ['./rootCA.crt']):
+                if chat_utils.cert_checker(clientCert, self.trust_store):
                     incoming_msg = secureClientSocket.recv(4096).decode('UTF-8')
                     if incoming_msg == chat_utils.CHAT_HANDSHAKE_COMPLETED:
                         self.client_side = secureClientSocket
@@ -180,7 +181,7 @@ class Active_MITM:
                 context = self.get_server_side_TLS_context()
                 secureSocket = context.wrap_socket(new_socket)
                 serverCert = secureSocket.getpeercert(binary_form=True)
-                if chat_utils.cert_checker(serverCert, ['./rootCA.crt']):
+                if chat_utils.cert_checker(serverCert, self.trust_store):
                     self.server_side = secureSocket
                     input_str = chat_utils.CHAT_HANDSHAKE_COMPLETED
                     secureSocket.sendall(input_str.encode('UTF-8'))

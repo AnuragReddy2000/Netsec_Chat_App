@@ -10,6 +10,7 @@ class Chat_Server:
         self.server = socket.socket(addr_family, socket.SOCK_STREAM)
         self.server.bind((ip_addr, port))
         self.server.listen(5)
+        self.trust_store = chat_utils.make_trust_store(['./rootCA.crt'])
         print(Fore.GREEN + Style.BRIGHT + 'Server up and running! Waiting for client...\n')
 
         self.inputs = [sys.stdin]
@@ -88,7 +89,7 @@ class Chat_Server:
                         cert_reqs=ssl.CERT_REQUIRED,
                         ssl_version=ssl.PROTOCOL_TLS)
                 clientCert = secureClientSocket.getpeercert(binary_form=True)
-                if chat_utils.cert_checker(clientCert, ['./rootCA.crt']):
+                if chat_utils.cert_checker(clientCert, self.trust_store):
                     incoming_msg = secureClientSocket.recv(4096).decode('UTF-8')
                     if incoming_msg == chat_utils.CHAT_HANDSHAKE_COMPLETED:
                         self.inputs.append(secureClientSocket)
